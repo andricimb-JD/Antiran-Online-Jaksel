@@ -1,0 +1,1290 @@
+<!doctype html>
+<html lang="id" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Queue - Supabase Edition</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-numeric { font-family: 'Space Grotesk', sans-serif; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+ </head>
+ <body class="h-full bg-slate-50 text-slate-800">
+  <div id="app-wrapper" class="h-full w-full overflow-auto flex flex-col">
+   <header id="app-header" class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+     <div class="flex items-center space-x-3">
+      <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-md shadow-blue-200">
+       <i data-lucide="database" class="w-5 h-5"></i>
+      </div>
+      <div>
+       <h1 id="header-title" class="text-md font-bold text-slate-900 tracking-tight leading-none">SmartQueue Selatan</h1>
+       <span id="header-subtitle" class="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">Didukung oleh Supabase</span>
+      </div>
+     </div>
+     <div class="flex items-center space-x-3 text-sm">
+      <div class="hidden md:flex flex-col text-right mr-3 border-r pr-4 border-slate-200">
+       <span id="live-date" class="text-[10px] text-slate-400 font-bold uppercase">Memuat...</span> 
+       <span id="live-time" class="text-xs font-bold text-slate-700 font-numeric">--:-- WIB</span>
+      </div>
+      <div id="user-info" class="hidden flex items-center space-x-2 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-200 font-medium">
+       <i data-lucide="user" class="w-3 h-3"></i> 
+       <span id="user-display" class="text-xs font-semibold">-</span> 
+       <button onclick="logout()" class="ml-2 text-indigo-600 hover:text-indigo-800 font-bold text-xs">Keluar</button>
+      </div>
+      <div id="db-badge" class="flex items-center space-x-2 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full border border-amber-200 font-medium transition-colors">
+       <span id="db-indicator" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> 
+       <span id="db-status" class="text-xs">Mode Lokal</span>
+      </div>
+     </div>
+    </div>
+   </header>
+
+   <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Toast -->
+    <div id="toast-container" class="fixed top-20 right-4 z-50 space-y-2 pointer-events-none"></div>
+
+    <!-- PORTAL VIEW -->
+    <div id="view-portal" class="max-w-4xl mx-auto py-12">
+     <div class="text-center mb-12">
+      <h2 class="text-4xl font-extrabold text-slate-900 tracking-tight">Portal Layanan Mandiri</h2>
+      <p class="mt-3 text-lg text-slate-600">Silakan pilih jenis modul halaman di bawah ini.</p>
+     </div>
+     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <button onclick="switchView('register')" class="group bg-white p-8 rounded-2xl border border-slate-200 hover:border-blue-500 hover:shadow-xl transition-all text-left flex flex-col justify-between h-64">
+       <div class="space-y-4">
+        <div class="bg-blue-50 text-blue-600 p-4 rounded-2xl w-14 h-14 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+         <i data-lucide="ticket" class="w-6 h-6"></i>
+        </div>
+        <div>
+         <h3 class="text-xl font-bold text-slate-900">Ambil Antrian</h3>
+         <p class="text-slate-500 mt-2 text-sm leading-relaxed">Registrasi mandiri dan cetak nomor antrian.</p>
+        </div>
+       </div>
+      </button> 
+      <button onclick="switchView('monitor')" class="group bg-white p-8 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:shadow-xl transition-all text-left flex flex-col justify-between h-64">
+       <div class="space-y-4">
+        <div class="bg-indigo-50 text-indigo-600 p-4 rounded-2xl w-14 h-14 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+         <i data-lucide="monitor" class="w-6 h-6"></i>
+        </div>
+        <div>
+         <h3 class="text-xl font-bold text-slate-900">Monitor Layar</h3>
+         <p class="text-slate-500 mt-2 text-sm leading-relaxed">Papan tampilan panggilan nomor antrian loket.</p>
+        </div>
+       </div>
+      </button> 
+      <button onclick="switchView('admin')" class="group bg-white p-8 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:shadow-xl transition-all text-left flex flex-col justify-between h-64">
+       <div class="space-y-4">
+        <div class="bg-emerald-50 text-emerald-600 p-4 rounded-2xl w-14 h-14 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+         <i data-lucide="shield-check" class="w-6 h-6"></i>
+        </div>
+        <div>
+         <h3 class="text-xl font-bold text-slate-900">Portal Petugas</h3>
+         <p class="text-slate-500 mt-2 text-sm leading-relaxed">Kelola panggilan loket dan dashboard laporan.</p>
+        </div>
+       </div>
+      </button>
+     </div>
+    </div>
+
+    <!-- REGISTER VIEW -->
+    <div id="view-register" class="hidden max-w-2xl mx-auto">
+     <div class="mb-6">
+      <button onclick="switchView('portal')" class="text-slate-500 hover:text-slate-800 flex items-center font-medium"> 
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Kembali ke Portal 
+      </button>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+      <h2 class="text-2xl font-bold text-slate-900 mb-6">Ambil Nomor Antrian Anda</h2>
+      <form id="queue-form" onsubmit="handleRegister(event)" class="space-y-5">
+       <div>
+        <label for="reg-name" class="block text-sm font-semibold text-slate-700 mb-2">Nama Pemohon <span class="text-red-500">*</span></label> 
+        <input type="text" id="reg-name" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Nama Lengkap">
+       </div>
+       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+         <label for="reg-phone" class="block text-sm font-semibold text-slate-700 mb-2">No. Telepon <span class="text-red-500">*</span></label> 
+         <input type="tel" id="reg-phone" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="08xxxxxxxxxx">
+        </div>
+        <div>
+         <label for="reg-unit-wilayah" class="block text-sm font-semibold text-slate-700 mb-2">Tingkat Wilayah <span class="text-red-500">*</span></label> 
+         <select id="reg-unit-wilayah" onchange="handleUnitWilayahChange()" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 bg-white focus:outline-none"> 
+           <option value="">-- Pilih Wilayah --</option> 
+           <option value="Kota">Tingkat Kota</option> 
+           <option value="Kecamatan">Tingkat Kecamatan</option> 
+           <option value="Kelurahan">Tingkat Kelurahan</option> 
+         </select>
+        </div>
+       </div>
+       <div id="wilayah-container" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+        <div id="kecamatan-box" class="hidden">
+         <label for="reg-kecamatan" class="block text-xs font-bold text-slate-600 mb-2">Kecamatan</label> 
+         <select id="reg-kecamatan" onchange="handleKecamatanChange()" class="w-full px-4 py-2.5 rounded-xl border bg-white focus:outline-none"><option value="">-- Pilih --</option></select>
+        </div>
+        <div id="kelurahan-box" class="hidden">
+         <label for="reg-kelurahan" class="block text-xs font-bold text-slate-600 mb-2">Kelurahan</label> 
+         <select id="reg-kelurahan" disabled class="w-full px-4 py-2.5 rounded-xl border bg-white focus:outline-none"><option value="">-- Pilih --</option></select>
+        </div>
+       </div>
+       <div>
+        <label for="reg-address-detail" class="block text-sm font-semibold text-slate-700 mb-2">Alamat Lengkap <span class="text-red-500">*</span></label> 
+        <textarea id="reg-address-detail" required rows="3" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Nama jalan, RT/RW, nomor gedung, dll."></textarea>
+       </div>
+       <div>
+        <label for="reg-purpose" class="block text-sm font-semibold text-slate-700 mb-2">Jenis Layanan <span class="text-red-500">*</span></label> 
+        <select id="reg-purpose" required class="w-full px-4 py-3 rounded-xl border bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"><option value="">-- Pilih Layanan --</option></select>
+       </div>
+       <button type="submit" id="btn-register" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-md flex justify-center items-center gap-2"> 
+         <i data-lucide="printer" class="w-5 h-5"></i> Cetak Nomor Antrian 
+       </button>
+      </form>
+     </div>
+    </div>
+
+    <!-- LOGIN MODAL -->
+    <div id="login-modal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+     <div class="bg-white rounded-3xl p-8 w-full max-w-md relative shadow-2xl">
+      <button onclick="closeLoginModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+      <h3 class="text-xl font-bold text-center text-slate-900 mb-2">Portal Petugas</h3>
+      <p class="text-xs text-slate-500 text-center mb-6">Masuk dengan akun Anda untuk mengelola antrian</p>
+      <form onsubmit="handleLogin(event)" class="space-y-4">
+       <div>
+        <label for="login-username" class="block text-xs font-semibold text-slate-700 mb-1">Username</label> 
+        <input type="text" id="login-username" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" placeholder="Masukkan username">
+       </div>
+       <div>
+        <label for="login-password" class="block text-xs font-semibold text-slate-700 mb-1">Password</label> 
+        <input type="password" id="login-password" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" placeholder="Masukkan password">
+       </div>
+       <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all shadow-md text-sm">Masuk</button>
+      </form>
+      <div class="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+       <p class="text-[10px] font-semibold text-slate-600 mb-2">📝 Akun Demo bawaan:</p>
+       <div class="space-y-1 text-[10px] text-slate-600 font-mono">
+        <p><span class="bg-slate-200 px-1.5 py-0.5 rounded font-bold">admin</span> / <span class="bg-slate-200 px-1.5 py-0.5 rounded">admin123</span> (Role: Admin - MASTER)</p>
+        <p><span class="bg-slate-200 px-1.5 py-0.5 rounded font-bold">tebet</span> / <span class="bg-slate-200 px-1.5 py-0.5 rounded">tebet123</span> (Role: User - Kec. Tebet)</p>
+       </div>
+      </div>
+     </div>
+    </div>
+
+    <!-- MONITOR VIEW -->
+    <div id="view-monitor" class="hidden">
+     <div class="mb-6">
+      <button onclick="switchView('portal')" class="text-slate-500 font-medium flex items-center"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Kembali</button>
+     </div>
+     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div class="lg:col-span-2 space-y-6">
+       <div class="bg-gradient-to-tr from-slate-900 to-indigo-950 rounded-3xl p-8 text-white shadow-xl">
+        <span class="bg-indigo-500/20 text-indigo-300 px-3 py-1.5 rounded-full text-xs font-semibold uppercase">Panggilan Utama</span>
+        <div class="mt-8 flex justify-between items-center">
+         <div>
+          <div id="mon-current-num" class="text-7xl md:text-8xl font-black font-numeric mt-1"> --- </div>
+          <p id="mon-current-purpose" class="text-lg font-semibold mt-3 text-slate-300">-- Antrian Kosong --</p>
+         </div>
+         <div class="bg-white/10 p-6 rounded-2xl text-center min-w-[120px]">
+          <span class="text-xs font-bold text-indigo-300">MENUJU LOKET</span><br>
+          <span id="mon-current-counter" class="text-4xl font-extrabold mt-2 block">--</span>
+         </div>
+        </div>
+       </div>
+       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white border p-5 rounded-2xl text-center shadow-sm">
+         <h4 class="text-xs font-bold text-slate-400 uppercase">Loket 1</h4>
+         <div id="mon-num-l1" class="text-3xl font-extrabold font-numeric text-slate-800 mt-2"> -- </div>
+         <span id="mon-purpose-l1" class="text-xs text-slate-500 block truncate mt-1">Kosong</span>
+        </div>
+        <div class="bg-white border p-5 rounded-2xl text-center shadow-sm">
+         <h4 class="text-xs font-bold text-slate-400 uppercase">Loket 2</h4>
+         <div id="mon-num-l2" class="text-3xl font-extrabold font-numeric text-slate-800 mt-2"> -- </div>
+         <span id="mon-purpose-l2" class="text-xs text-slate-500 block truncate mt-1">Kosong</span>
+        </div>
+        <div class="bg-white border p-5 rounded-2xl text-center shadow-sm">
+         <h4 class="text-xs font-bold text-slate-400 uppercase">Loket 3</h4>
+         <div id="mon-num-l3" class="text-3xl font-extrabold font-numeric text-slate-800 mt-2"> -- </div>
+         <span id="mon-purpose-l3" class="text-xs text-slate-500 block truncate mt-1">Kosong</span>
+        </div>
+       </div>
+      </div>
+      <div class="bg-white border rounded-3xl p-6 flex flex-col shadow-sm" style="height:420px">
+       <h3 class="font-bold text-slate-900 flex justify-between items-center border-b pb-3">
+         Daftar Tunggu <span id="mon-total-waiting" class="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-xs font-bold">0</span>
+       </h3>
+       <div id="mon-waiting-list" class="flex-grow overflow-y-auto mt-4 space-y-2 custom-scroll"></div>
+      </div>
+     </div>
+    </div>
+
+    <!-- ADMIN VIEW -->
+    <div id="view-admin" class="hidden space-y-6">
+     <div class="flex justify-between items-center pb-4 border-b">
+      <div>
+       <button onclick="switchView('portal')" class="text-slate-500 font-medium flex items-center mb-2"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Kembali</button>
+       <h2 class="text-2xl font-extrabold text-slate-900">Panel Operator Loket</h2>
+       <div class="flex items-center space-x-2 mt-1">
+         <span id="admin-role-badge" class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-bold uppercase">-</span>
+         <p id="admin-tenant-info" class="text-xs text-slate-500 font-semibold">Wilayah: -</p>
+       </div>
+      </div>
+      <div class="flex gap-3">
+       <select id="admin-select-counter" onchange="updateAdminView()" class="bg-white border px-3 py-2 rounded-xl text-sm font-semibold focus:outline-none"> 
+         <option value="Loket 1">Loket 1</option> 
+         <option value="Loket 2">Loket 2</option> 
+         <option value="Loket 3">Loket 3</option> 
+       </select> 
+       <button onclick="switchView('report')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold"> 
+         <i data-lucide="bar-chart-3" class="w-4 h-4 inline mr-1"></i> Laporan 
+       </button>
+      </div>
+     </div>
+
+     <!-- Admin Tab Navigation -->
+     <div class="border-b border-slate-200">
+       <nav class="flex space-x-6">
+         <button onclick="switchAdminTab('panggilan')" id="tab-panggilan" class="border-b-2 border-blue-600 py-3 px-1 text-sm font-bold text-blue-600">
+           Panggilan Antrean
+         </button>
+         <button onclick="switchAdminTab('layanan')" id="tab-layanan" class="border-b-2 border-transparent py-3 px-1 text-sm font-semibold text-slate-500 hover:text-slate-800">
+           Kelola Layanan
+         </button>
+         <button onclick="switchAdminTab('users')" id="tab-users" class="hidden border-b-2 border-transparent py-3 px-1 text-sm font-semibold text-slate-500 hover:text-slate-800">
+           Manajemen Pengguna (Admin Only)
+         </button>
+       </nav>
+     </div>
+
+     <!-- TAB CONTENT: PANGGILAN ANTREAN -->
+     <div id="content-admin-panggilan" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 space-y-6">
+       <div class="bg-white border rounded-3xl p-6 flex gap-6 shadow-sm items-center">
+        <div class="bg-slate-50 border p-6 rounded-2xl text-center w-1/3">
+         <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Aktif Melayani</span>
+         <div id="admin-current-num" class="text-5xl font-black my-2 font-numeric text-blue-600"> --- </div>
+         <span id="admin-current-purpose" class="text-[11px] bg-slate-200 text-slate-700 px-2 py-1 rounded-full block truncate">Belum ada panggilan</span>
+        </div>
+        <div class="space-y-3 flex-grow">
+         <button onclick="callNextQueue()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-100">Panggil Antrian Berikutnya</button> 
+         <button onclick="recallCurrentQueue()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-all">Panggil Ulang (Recall)</button>
+        </div>
+       </div>
+       <div class="bg-white border rounded-3xl p-6 shadow-sm">
+        <h3 class="font-bold text-slate-900 mb-4 flex justify-between items-center text-sm md:text-base">
+          <span id="admin-table-title-area">Daftar Antrian Sesuai Wilayah Kerja Anda</span>
+          <span id="admin-queue-count" class="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full text-xs font-bold">0</span>
+        </h3>
+        <div class="overflow-x-auto">
+         <table class="w-full text-left text-sm">
+          <thead class="border-b bg-slate-50">
+           <tr class="text-slate-500 font-semibold">
+            <th class="p-3">No</th>
+            <th class="p-3">Nama</th>
+            <th class="p-3">Layanan</th>
+            <th class="p-3">Wilayah</th>
+            <th class="p-3">Status</th>
+            <th class="p-3 text-right">Aksi</th>
+           </tr>
+          </thead>
+          <tbody id="admin-table-body" class="divide-y"></tbody>
+         </table>
+        </div>
+       </div>
+      </div>
+      <div class="space-y-6">
+       <!-- Card Status Operator -->
+       <div class="bg-white border rounded-3xl p-6 shadow-sm">
+        <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <i data-lucide="shield" class="w-5 h-5 text-indigo-600"></i> Informasi Petugas
+        </h3>
+        <div class="space-y-2 text-xs">
+          <div class="flex justify-between py-2 border-b">
+            <span class="text-slate-500">Nama Petugas</span>
+            <span id="op-info-name" class="font-bold text-slate-800">-</span>
+          </div>
+          <div class="flex justify-between py-2 border-b">
+            <span class="text-slate-500">Tingkat Wilayah</span>
+            <span id="op-info-level" class="font-bold text-slate-800">-</span>
+          </div>
+          <div class="flex justify-between py-2 border-b">
+            <span class="text-slate-500">Wilayah Tugas</span>
+            <span id="op-info-area" class="font-bold text-slate-800">-</span>
+          </div>
+        </div>
+       </div>
+      </div>
+     </div>
+
+     <!-- TAB CONTENT: KELOLA LAYANAN -->
+     <div id="content-admin-layanan" class="hidden max-w-2xl">
+       <div class="bg-white border rounded-3xl p-6 shadow-sm">
+        <h3 class="font-bold text-slate-900 mb-4">Kelola Jenis Layanan</h3>
+        <form onsubmit="handleAddService(event)" class="space-y-3 mb-6">
+         <input type="text" id="new-service-input" required class="w-full text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Nama Layanan Baru">
+         <div class="flex gap-2">
+          <input type="text" id="new-service-prefix" required maxlength="5" class="w-2/3 text-sm px-3 py-2 border rounded-xl uppercase focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Prefix (Cth: OSS)"> 
+          <button type="submit" class="w-1/3 bg-emerald-600 text-white px-3 py-2 rounded-xl font-bold hover:bg-emerald-700 text-sm">Tambah</button>
+         </div>
+        </form>
+        <div id="admin-services-list" class="space-y-2 max-h-72 overflow-y-auto custom-scroll"></div>
+       </div>
+     </div>
+
+     <!-- TAB CONTENT: MANAJEMEN PENGGUNA (Admin Only) -->
+     <div id="content-admin-users" class="hidden space-y-6">
+       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+         <div class="bg-white border rounded-3xl p-6 shadow-sm">
+           <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2 text-md">
+             <i data-lucide="user-plus" class="w-5 h-5 text-blue-600"></i> Tambah Petugas Baru
+           </h3>
+           <form onsubmit="handleCreateUser(event)" class="space-y-4">
+             <div>
+               <label for="u-display-name" class="block text-xs font-bold text-slate-600 mb-1">Nama Petugas</label>
+               <input type="text" id="u-display-name" required class="w-full text-xs px-3 py-2.5 border rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="Masukkan nama petugas">
+             </div>
+             <div>
+               <label for="u-username" class="block text-xs font-bold text-slate-600 mb-1">Username Login</label>
+               <input type="text" id="u-username" required class="w-full text-xs px-3 py-2.5 border rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="Username unik">
+             </div>
+             <div>
+               <label for="u-password" class="block text-xs font-bold text-slate-600 mb-1">Password</label>
+               <input type="password" id="u-password" required class="w-full text-xs px-3 py-2.5 border rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="Password petugas">
+             </div>
+             <div>
+               <label for="u-unit-wilayah" class="block text-xs font-bold text-slate-600 mb-1">Tingkat Wilayah Kerja</label>
+               <select id="u-unit-wilayah" onchange="handleUserWilayahChange()" required class="w-full text-xs px-3 py-2.5 bg-white border rounded-xl focus:outline-none">
+                 <option value="Kota">Tingkat Kota</option>
+                 <option value="Kecamatan">Tingkat Kecamatan</option>
+                 <option value="Kelurahan">Tingkat Kelurahan</option>
+               </select>
+             </div>
+             <div id="u-location-box" class="hidden grid grid-cols-1 gap-3 p-3 bg-slate-50 rounded-xl border">
+               <div id="u-kecamatan-box" class="hidden">
+                 <label for="u-kecamatan" class="block text-[10px] font-bold text-slate-600 mb-1">Pilih Kecamatan</label>
+                 <select id="u-kecamatan" onchange="handleUserKecamatanChange()" class="w-full text-xs px-2 py-2 bg-white border rounded-lg focus:outline-none"></select>
+               </div>
+               <div id="u-kelurahan-box" class="hidden">
+                 <label for="u-kelurahan" class="block text-[10px] font-bold text-slate-600 mb-1">Pilih Kelurahan</label>
+                 <select id="u-kelurahan" class="w-full text-xs px-2 py-2 bg-white border rounded-lg focus:outline-none"></select>
+               </div>
+             </div>
+             <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all">
+               Daftarkan Petugas
+             </button>
+           </form>
+         </div>
+
+         <div class="lg:col-span-2 bg-white border rounded-3xl p-6 shadow-sm">
+           <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+             <i data-lucide="users" class="w-5 h-5 text-indigo-600"></i> Daftar Petugas Aktif
+           </h3>
+           <div class="overflow-x-auto">
+             <table class="w-full text-left text-xs">
+               <thead class="border-b bg-slate-50 text-slate-500 font-semibold">
+                 <tr>
+                   <th class="p-3">Nama</th>
+                   <th class="p-3">Username</th>
+                   <th class="p-3">Tingkat</th>
+                   <th class="p-3">Wilayah Kerja</th>
+                   <th class="p-3 text-right">Aksi</th>
+                 </tr>
+               </thead>
+               <tbody id="users-table-body" class="divide-y"></tbody>
+             </table>
+           </div>
+         </div>
+       </div>
+     </div>
+    </div>
+
+    <!-- REPORT VIEW -->
+    <div id="view-report" class="hidden space-y-6">
+     <div class="flex justify-between items-center pb-4 border-b">
+      <div>
+       <button onclick="switchView('admin')" class="text-slate-500 font-medium flex items-center mb-2"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Kembali ke Panel</button>
+       <h2 class="text-2xl font-extrabold text-slate-900">Dashboard Laporan Multi-Level</h2>
+      </div>
+      <div class="flex items-center space-x-3">
+        <!-- Filter Laporan Operator (Admin Only) -->
+        <div id="report-filter-container" class="hidden">
+          <select id="report-user-filter" onchange="renderReportView()" class="bg-white border px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none font-sans">
+            <option value="SEMUA">Semua Wilayah (MASTER)</option>
+          </select>
+        </div>
+        <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold"> 
+          <i data-lucide="download" class="w-4 h-4 inline mr-1"></i> Ekspor CSV 
+        </button>
+      </div>
+     </div>
+
+     <!-- Statistik Utama -->
+     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white border p-5 rounded-2xl shadow-sm">
+       <span class="text-xs text-slate-500 font-semibold">Total Antrian</span>
+       <div id="rep-stat-total" class="text-3xl font-extrabold text-slate-800 mt-1 font-numeric"> 0 </div>
+      </div>
+      <div class="bg-white border p-5 rounded-2xl shadow-sm">
+       <span class="text-xs text-emerald-500 font-semibold">Selesai</span>
+       <div id="rep-stat-served" class="text-3xl font-extrabold text-emerald-600 mt-1 font-numeric"> 0 </div>
+      </div>
+      <div class="bg-white border p-5 rounded-2xl shadow-sm">
+       <span class="text-xs text-amber-500 font-semibold">Menunggu</span>
+       <div id="rep-stat-waiting" class="text-3xl font-extrabold text-amber-600 mt-1 font-numeric"> 0 </div>
+      </div>
+      <div class="bg-white border p-5 rounded-2xl shadow-sm">
+       <span class="text-xs text-indigo-500 font-semibold">Kecamatan Terpadat</span>
+       <div id="rep-stat-peak" class="text-lg font-bold text-indigo-600 mt-2 truncate"> - </div>
+      </div>
+     </div>
+
+     <!-- Charting Section -->
+     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white border rounded-3xl p-6 shadow-sm" style="height:320px">
+       <h4 class="text-sm font-bold text-slate-700 mb-2">Distribusi Per Layanan</h4>
+       <div class="relative" style="height:250px">
+        <canvas id="chart-purposes"></canvas>
+       </div>
+      </div>
+      <div class="bg-white border rounded-3xl p-6 shadow-sm" style="height:320px">
+       <h4 class="text-sm font-bold text-slate-700 mb-2">Volume Per Kecamatan</h4>
+       <div class="relative" style="height:250px">
+        <canvas id="chart-regions"></canvas>
+       </div>
+      </div>
+     </div>
+
+     <!-- LAPORAN TINGKAT MULTI-LEVEL -->
+     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+       <!-- Tingkat Kota -->
+       <div id="card-report-kota" class="bg-white border rounded-3xl p-6 shadow-sm">
+         <h4 class="text-sm font-bold text-slate-900 border-b pb-3 mb-4 flex items-center justify-between">
+           <span>Tingkat Kota</span>
+           <span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-[10px] font-bold">Konsolidasi</span>
+         </h4>
+         <div id="kota-report-list" class="space-y-4"></div>
+       </div>
+
+       <!-- Tingkat Kecamatan -->
+       <div id="card-report-kecamatan" class="bg-white border rounded-3xl p-6 shadow-sm">
+         <h4 class="text-sm font-bold text-slate-900 border-b pb-3 mb-4 flex items-center justify-between">
+           <span>Tingkat Kecamatan</span>
+           <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full text-[10px] font-bold">Kecamatan</span>
+         </h4>
+         <div id="kecamatan-report-list" class="space-y-3 max-h-80 overflow-y-auto custom-scroll"></div>
+       </div>
+
+       <!-- Tingkat Kelurahan -->
+       <div id="card-report-kelurahan" class="bg-white border rounded-3xl p-6 shadow-sm">
+         <h4 class="text-sm font-bold text-slate-900 border-b pb-3 mb-4 flex items-center justify-between">
+           <span>Tingkat Kelurahan</span>
+           <span class="px-2 py-0.5 bg-teal-100 text-teal-800 rounded-full text-[10px] font-bold">Kelurahan</span>
+         </h4>
+         <div id="kelurahan-report-list" class="space-y-3 max-h-80 overflow-y-auto custom-scroll"></div>
+       </div>
+     </div>
+
+     <!-- Log Transaksi -->
+     <div class="bg-white border rounded-3xl p-6 shadow-sm">
+      <h3 class="font-bold text-slate-900 mb-4 flex justify-between items-center">
+        <span>Log Transaksi</span>
+        <span class="text-xs text-slate-400 font-medium">*Sesuai Filter Wilayah Kerja</span>
+      </h3>
+      <div class="overflow-x-auto">
+       <table class="w-full text-left text-sm">
+        <thead class="border-b bg-slate-50 text-slate-500">
+         <tr>
+          <th class="p-3">No Antrian</th>
+          <th class="p-3">Waktu</th>
+          <th class="p-3">Nama</th>
+          <th class="p-3">Tingkat</th>
+          <th class="p-3">Kecamatan</th>
+          <th class="p-3">Kelurahan</th>
+          <th class="p-3">Layanan</th>
+          <th class="p-3">Status</th>
+         </tr>
+        </thead>
+        <tbody id="report-table-body" class="divide-y"></tbody>
+       </table>
+      </div>
+     </div>
+    </div>
+   </main>
+  </div>
+
+  <script>
+    /* =====================================================================
+       KONFIGURASI SUPABASE (SQL Schema dilampirkan di bawah)
+       ===================================================================== */
+    // GANTI DENGAN KREDENSIAL SUPABASE ANDA
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    
+    // Auto-fallback: Jika API belum diisi, kita gunakan mode Local Storage.
+    const isSupabaseActive = SUPABASE_URL.startsWith('http');
+    let supabaseClient = null;
+
+    if (isSupabaseActive) {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      document.getElementById('db-status').textContent = 'Supabase Terhubung';
+      document.getElementById('db-badge').classList.replace('bg-amber-50', 'bg-emerald-50');
+      document.getElementById('db-badge').classList.replace('text-amber-700', 'text-emerald-700');
+      document.getElementById('db-badge').classList.replace('border-amber-200', 'border-emerald-200');
+      document.getElementById('db-indicator').classList.replace('bg-amber-500', 'bg-emerald-500');
+    }
+
+    /* SKEMA SQL UNTUK SUPABASE (Jalankan di SQL Editor Supabase Anda):
+       ---------------------------------------------------------------------
+       create table queues (
+         id uuid default uuid_generate_v4() primary key,
+         queue_number text, timestamp timestamptz default now(),
+         name text, phone text, unit_wilayah text, kecamatan text,
+         kelurahan text, address_detail text, purpose text, status text, counter text
+       );
+       
+       create table users (
+         id uuid default uuid_generate_v4() primary key,
+         username text unique, password text, role text, tenant text,
+         display_name text, unit_wilayah text, kecamatan text, kelurahan text
+       );
+       
+       create table services (
+         id uuid default uuid_generate_v4() primary key,
+         name text unique, prefix text
+       );
+    */
+
+    // --- STATE ---
+    let queueDatabase = [];
+    let currentView = 'portal';
+    let currentAdminTab = 'panggilan';
+    let purposeChartInstance = null;
+    let regionChartInstance = null;
+    let currentUser = null;
+    let currentTenant = null;
+
+    // Default Fallback Database jika Supabase tidak aktif
+    let usersDatabase = isSupabaseActive ? [] : JSON.parse(localStorage.getItem('sq_users')) || [
+      { id: '1', username: 'admin', password: 'admin123', role: 'admin', tenant: 'MASTER', display_name: 'Administrator', unit_wilayah: 'Kota', kecamatan: '-', kelurahan: '-' },
+      { id: '2', username: 'tebet', password: 'tebet123', role: 'user', tenant: 'Tebet', display_name: 'Operator Tebet', unit_wilayah: 'Kecamatan', kecamatan: 'Tebet', kelurahan: '-' }
+    ];
+
+    let serviceMapping = isSupabaseActive ? {} : JSON.parse(localStorage.getItem('sq_services')) || {
+      "Perizinan OSS": "OSS", "Perizinan Reklame": "RKL", "Perizinan IMB/PBG": "IMB"
+    };
+
+    const wilayahData = {
+      "Kebayoran Baru": ["Selong", "Gunung", "Kramat Pela", "Gandaria Utara", "Cipete Utara", "Pulo", "Melawai", "Petogogan"],
+      "Kebayoran Lama": ["Grogol Utara", "Grogol Selatan", "Cipulir", "Kebayoran Lama Utara", "Kebayoran Lama Selatan", "Pondok Pinang"],
+      "Cilandak": ["Cipete Selatan", "Gandaria Selatan", "Cilandak Barat", "Lebak Bulus", "Pondok Labu"],
+      "Pasar Minggu": ["Pejaten Barat", "Pejaten Timur", "Pasar Minggu", "Kebagusan", "Jati Padang", "Ragunan"],
+      "Jagakarsa": ["Tanjung Barat", "Lenteng Agung", "Jagakarsa", "Ciganjur", "Srengseng Sawah"],
+      "Pancoran": ["Kalibata", "Rawa Jati", "Duren Tiga", "Cikoko", "Pengadegan"],
+      "Tebet": ["Tebet Barat", "Tebet Timur", "Kebon Baru", "Bukit Duri", "Manggarai"],
+      "Setiabudi": ["Setiabudi", "Karet", "Karet Semanggi", "Kuningan Timur", "Menteng Atas"],
+      "Mampang Prapatan": ["Kuningan Barat", "Pela Mampang", "Bangka", "Tegal Parang"],
+      "Pesanggrahan": ["Ulujami", "Petukangan Utara", "Petukangan Selatan", "Pesanggrahan", "Bintaro"]
+    };
+
+    // --- ADAPTER SUPABASE / LOKAL ---
+    async function apiFetchAll() {
+      if (isSupabaseActive) {
+        try {
+          // Fetch Queues
+          const { data: qData, error: qErr } = await supabaseClient.from('queues').select('*').order('timestamp', { ascending: true });
+          if (!qErr) queueDatabase = qData || [];
+
+          // Fetch Users
+          const { data: uData, error: uErr } = await supabaseClient.from('users').select('*');
+          if (!uErr) usersDatabase = uData || [];
+
+          // Fetch Services
+          const { data: sData, error: sErr } = await supabaseClient.from('services').select('*');
+          if (!sErr && sData) {
+            serviceMapping = {};
+            sData.forEach(s => serviceMapping[s.name] = s.prefix);
+          }
+        } catch (e) {
+          console.error("Supabase Error:", e);
+        }
+      } else {
+        queueDatabase = JSON.parse(localStorage.getItem('smartqueue_db')) || [];
+      }
+      refreshActiveViews();
+    }
+
+    async function apiAddQueue(q) {
+      if (isSupabaseActive) {
+        const { data, error } = await supabaseClient.from('queues').insert([q]).select();
+        if (!error && data) return data[0];
+        return null;
+      } else {
+        q.id = Date.now().toString(); // Generate local ID
+        queueDatabase.push(q);
+        localStorage.setItem('smartqueue_db', JSON.stringify(queueDatabase));
+        refreshActiveViews();
+        return q;
+      }
+    }
+
+    async function apiUpdateQueue(id, updates) {
+      if (isSupabaseActive) {
+        await supabaseClient.from('queues').update(updates).eq('id', id);
+      } else {
+        const idx = queueDatabase.findIndex(q => q.id === id);
+        if (idx !== -1) queueDatabase[idx] = { ...queueDatabase[idx], ...updates };
+        localStorage.setItem('smartqueue_db', JSON.stringify(queueDatabase));
+        refreshActiveViews();
+      }
+    }
+
+    // --- INISIALISASI ---
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      apiFetchAll();
+
+      if (isSupabaseActive) {
+        // Realtime Subscription Supabase
+        supabaseClient.channel('custom-all-channel')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'queues' }, payload => {
+            apiFetchAll(); // Sinkronisasi saat ada perubahan di database
+          })
+          .subscribe();
+      }
+    });
+
+    // Waktu & Jam Realtime
+    setInterval(() => {
+      const now = new Date();
+      document.getElementById('live-date').textContent = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      document.getElementById('live-time').textContent = now.toLocaleTimeString('id-ID') + ' WIB';
+    }, 1000);
+
+    // --- UI HELPERS ---
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const colors = type === 'success' ? 'bg-white border-emerald-200 text-emerald-800' 
+                   : type === 'error' ? 'bg-white border-red-200 text-red-800' 
+                   : 'bg-white border-blue-200 text-blue-800';
+      toast.className = `px-4 py-3 rounded-2xl border shadow-lg ${colors} font-semibold text-xs transition-all duration-300`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    function refreshActiveViews() {
+      if (currentView === 'admin') updateAdminView();
+      if (currentView === 'monitor') renderMonitorView();
+      if (currentView === 'report') renderReportView();
+    }
+
+    function switchView(viewName) {
+      if ((viewName === 'admin' || viewName === 'report') && !currentUser) {
+        openLoginModal();
+        return;
+      }
+      currentView = viewName;
+      ['portal', 'register', 'monitor', 'admin', 'report'].forEach(v => document.getElementById(`view-${v}`).classList.add('hidden'));
+      document.getElementById(`view-${viewName}`).classList.remove('hidden');
+      
+      if (viewName === 'admin') {
+        const usersTab = document.getElementById('tab-users');
+        if (currentUser.role === 'admin') usersTab.classList.remove('hidden');
+        else { usersTab.classList.add('hidden'); if(currentAdminTab === 'users') switchAdminTab('panggilan'); }
+        updateAdminView();
+      }
+      if (viewName === 'monitor') renderMonitorView();
+      if (viewName === 'report') renderReportView();
+      if (viewName === 'register') { renderPurposeDropdown(); renderKecamatanDropdown(); }
+      lucide.createIcons();
+    }
+
+    function switchAdminTab(tabName) {
+      if (tabName === 'users' && currentUser.role !== 'admin') {
+        showToast("Akses Ditolak!", "error"); return;
+      }
+      currentAdminTab = tabName;
+      ['panggilan', 'layanan', 'users'].forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        const content = document.getElementById(`content-admin-${t}`);
+        if (t === tabName) {
+          btn.className = "border-b-2 border-blue-600 py-3 px-1 text-sm font-bold text-blue-600";
+          content.classList.remove('hidden');
+        } else {
+          btn.className = "border-b-2 border-transparent py-3 px-1 text-sm font-semibold text-slate-500 hover:text-slate-800";
+          content.classList.add('hidden');
+        }
+      });
+      if (tabName === 'users') { renderUsersList(); renderUserCreationDropdowns(); }
+      lucide.createIcons();
+    }
+
+    // --- REGISTRASI ---
+    function renderKecamatanDropdown() {
+      const select = document.getElementById('reg-kecamatan');
+      select.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+      Object.keys(wilayahData).forEach(k => select.innerHTML += `<option value="${k}">${k}</option>`);
+    }
+
+    function handleUnitWilayahChange() {
+      const unit = document.getElementById('reg-unit-wilayah').value;
+      document.getElementById('wilayah-container').classList.toggle('hidden', unit === 'Kota' || !unit);
+      document.getElementById('kecamatan-box').classList.toggle('hidden', unit === 'Kota' || !unit);
+      document.getElementById('kelurahan-box').classList.toggle('hidden', unit !== 'Kelurahan');
+    }
+
+    function handleKecamatanChange() {
+      const kec = document.getElementById('reg-kecamatan').value;
+      const kelSelect = document.getElementById('reg-kelurahan');
+      kelSelect.innerHTML = '<option value="">-- Pilih Kelurahan --</option>';
+      if (kec && wilayahData[kec]) {
+        kelSelect.disabled = false;
+        wilayahData[kec].forEach(kel => kelSelect.innerHTML += `<option value="${kel}">${kel}</option>`);
+      } else { kelSelect.disabled = true; }
+    }
+
+    function renderPurposeDropdown() {
+      const select = document.getElementById('reg-purpose');
+      select.innerHTML = '<option value="">-- Pilih Layanan --</option>';
+      Object.keys(serviceMapping).forEach(p => select.innerHTML += `<option value="${p}">${p}</option>`);
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      
+      const btn = document.getElementById('btn-register');
+      btn.disabled = true;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Memproses...`;
+      lucide.createIcons();
+
+      const name = document.getElementById('reg-name').value;
+      const purpose = document.getElementById('reg-purpose').value;
+      const prefix = serviceMapping[purpose] || "ANT";
+      
+      // Ambil count yang relevan
+      const counts = queueDatabase.filter(q => q.purpose === purpose || q.queue_number?.startsWith(prefix)).length;
+      const qNum = `${prefix}-${String(counts + 1).padStart(3, '0')}`;
+      
+      const newQueue = {
+        queue_number: qNum,
+        timestamp: new Date().toISOString(),
+        name: name,
+        phone: document.getElementById('reg-phone').value,
+        unit_wilayah: document.getElementById('reg-unit-wilayah').value,
+        kecamatan: document.getElementById('reg-kecamatan').value || "Tingkat Kota",
+        kelurahan: document.getElementById('reg-kelurahan').value || "-",
+        address_detail: document.getElementById('reg-address-detail').value,
+        purpose: purpose,
+        status: "Menunggu",
+        counter: ""
+      };
+
+      await apiAddQueue(newQueue);
+      
+      btn.disabled = false;
+      btn.innerHTML = `<i data-lucide="printer" class="w-5 h-5"></i> Cetak Nomor Antrian`;
+      lucide.createIcons();
+      showToast(`Nomor antrian Anda: ${qNum}`, "success");
+      document.getElementById('queue-form').reset();
+      handleUnitWilayahChange();
+      printTicket(newQueue);
+      switchView('portal');
+    }
+
+    function printTicket(q) {
+      const w = window.open('', '_blank', 'width=350,height=500');
+      if (!w) return showToast("Popup diblokir.", "info");
+      w.document.write(`
+        <html><head><title>Tiket Antrian</title>
+        <style>body{font-family:monospace;text-align:center;padding:20px;} h1{font-size:48px;margin:20px 0;} .line{border-top:1px dashed #000;margin:15px 0;}</style>
+        </head><body>
+          <h2>SmartQueue Selatan</h2><div class="line"></div>
+          <h1>${q.queue_number}</h1>
+          <p><strong>${q.name}</strong></p><p>${q.purpose}</p><p>${q.kecamatan}</p>
+          <div class="line"></div><p style="font-size:11px">${new Date(q.timestamp).toLocaleString('id-ID')}</p>
+          <script>setTimeout(() => { window.print(); window.close(); }, 500);<\/script>
+        </body></html>
+      `);
+    }
+
+    // --- PANEL ADMIN & OPERATOR ---
+    function updateAdminView() {
+      if (!currentUser) return;
+      
+      document.getElementById('op-info-name').textContent = currentUser.display_name;
+      document.getElementById('op-info-level').textContent = currentUser.unit_wilayah;
+      
+      let wKerja = 'Kota';
+      if (currentUser.unit_wilayah === 'Kecamatan') wKerja = `Kec. ${currentUser.kecamatan}`;
+      if (currentUser.unit_wilayah === 'Kelurahan') wKerja = `Kel. ${currentUser.kelurahan} (${currentUser.kecamatan})`;
+      if (currentUser.role === 'admin') wKerja = 'MASTER (Semua Wilayah)';
+      document.getElementById('op-info-area').textContent = wKerja;
+
+      document.getElementById('admin-role-badge').textContent = currentUser.role === 'admin' ? 'Admin' : 'Petugas';
+      document.getElementById('admin-tenant-info').textContent = `Wilayah Operasional: ${wKerja}`;
+      if (document.getElementById('admin-table-title-area')) {
+        document.getElementById('admin-table-title-area').textContent = `Daftar Antrian Sesuai Wilayah Kerja Anda (${wKerja})`;
+      }
+
+      const counter = document.getElementById('admin-select-counter').value;
+      const activeCall = queueDatabase.find(q => q.status === "Dipanggil" && q.counter === counter);
+      
+      if (activeCall) {
+        document.getElementById('admin-current-num').textContent = activeCall.queue_number;
+        document.getElementById('admin-current-purpose').textContent = `${activeCall.name} - ${activeCall.purpose}`;
+      } else {
+        document.getElementById('admin-current-num').textContent = "---";
+        document.getElementById('admin-current-purpose').textContent = "Belum ada panggilan";
+      }
+
+      const tableBody = document.getElementById('admin-table-body');
+      tableBody.innerHTML = '';
+      
+      const filtered = queueDatabase.filter(q => {
+        if (!q) return false;
+        if (currentUser.role === 'admin') return true;
+        if (currentUser.unit_wilayah === 'Kota') return q.unit_wilayah === 'Kota';
+        if (currentUser.unit_wilayah === 'Kecamatan') return q.kecamatan === currentUser.kecamatan;
+        if (currentUser.unit_wilayah === 'Kelurahan') return q.kelurahan === currentUser.kelurahan;
+        return false;
+      });
+
+      document.getElementById('admin-queue-count').textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-xs text-slate-400">Tidak ada antrean dalam wilayah kerja Anda</td></tr>`;
+      } else {
+        filtered.forEach((q) => {
+          const btn = q.status === 'Menunggu' 
+            ? `<button onclick="callSpecificQueue('${q.id}')" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs">Panggil</button>`
+            : `<span class="text-xs text-slate-400 font-bold">${q.status} (${q.counter})</span>`;
+          const tag = q.unit_wilayah === 'Kelurahan' ? q.kelurahan : (q.unit_wilayah === 'Kecamatan' ? q.kecamatan : 'Kota');
+
+          tableBody.innerHTML += `
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="p-3 font-semibold font-numeric text-slate-900">${q.queue_number}</td>
+              <td class="p-3 font-medium">${q.name}</td><td class="p-3 text-xs text-slate-500">${q.purpose}</td>
+              <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">${tag}</span></td>
+              <td class="p-3"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${q.status === 'Menunggu' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">${q.status}</span></td>
+              <td class="p-3 text-right">${btn}</td>
+            </tr>`;
+        });
+      }
+
+      // Render Layanan
+      const sList = document.getElementById('admin-services-list');
+      sList.innerHTML = '';
+      Object.keys(serviceMapping).forEach(key => {
+        sList.innerHTML += `
+          <div class="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+            <div><p class="font-bold text-xs text-slate-800">${key}</p><span class="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold">${serviceMapping[key]}</span></div>
+            <button onclick="removeService('${key}')" class="text-red-500 hover:text-red-700 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+          </div>`;
+      });
+      lucide.createIcons();
+    }
+
+    async function callNextQueue() {
+      const counter = document.getElementById('admin-select-counter').value;
+      const nextQueue = queueDatabase.find(q => {
+        if (!q || q.status !== "Menunggu") return false;
+        if (currentUser.role === 'admin') return true;
+        if (currentUser.unit_wilayah === 'Kota') return q.unit_wilayah === 'Kota';
+        if (currentUser.unit_wilayah === 'Kecamatan') return q.kecamatan === currentUser.kecamatan;
+        if (currentUser.unit_wilayah === 'Kelurahan') return q.kelurahan === currentUser.kelurahan;
+        return false;
+      });
+
+      if (!nextQueue) return showToast("Semua antrean selesai!", "info");
+
+      // Selesaikan antrean lama di loket ini
+      const activeCalls = queueDatabase.filter(q => q.counter === counter && q.status === "Dipanggil");
+      for (const call of activeCalls) {
+        await apiUpdateQueue(call.id, { status: "Selesai" });
+      }
+
+      await apiUpdateQueue(nextQueue.id, { status: "Dipanggil", counter: counter });
+      showToast(`Memanggil nomor ${nextQueue.queue_number}`, "success");
+    }
+
+    async function callSpecificQueue(id) {
+      const counter = document.getElementById('admin-select-counter').value;
+      const target = queueDatabase.find(q => q.id === id);
+      if (!target) return;
+
+      const activeCalls = queueDatabase.filter(q => q.counter === counter && q.status === "Dipanggil");
+      for (const call of activeCalls) {
+        await apiUpdateQueue(call.id, { status: "Selesai" });
+      }
+
+      await apiUpdateQueue(target.id, { status: "Dipanggil", counter: counter });
+      showToast(`Memanggil nomor ${target.queue_number}`, "success");
+    }
+
+    function recallCurrentQueue() {
+      const counter = document.getElementById('admin-select-counter').value;
+      const active = queueDatabase.find(q => q.status === "Dipanggil" && q.counter === counter);
+      if (active) showToast(`Memanggil ulang nomor ${active.queue_number}`, "info");
+      else showToast("Tidak ada antrean aktif", "error");
+    }
+
+    // --- MANAJEMEN PENGGUNA (SUPABASE) ---
+    function renderUserCreationDropdowns() {
+      const uKec = document.getElementById('u-kecamatan');
+      uKec.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+      Object.keys(wilayahData).forEach(k => uKec.innerHTML += `<option value="${k}">${k}</option>`);
+    }
+
+    function handleUserWilayahChange() {
+      const unit = document.getElementById('u-unit-wilayah').value;
+      document.getElementById('u-location-box').classList.toggle('hidden', unit === 'Kota');
+      document.getElementById('u-kecamatan-box').classList.toggle('hidden', unit === 'Kota');
+      document.getElementById('u-kelurahan-box').classList.toggle('hidden', unit !== 'Kelurahan');
+    }
+
+    function handleUserKecamatanChange() {
+      const kec = document.getElementById('u-kecamatan').value;
+      const kelSelect = document.getElementById('u-kelurahan');
+      kelSelect.innerHTML = '<option value="">-- Pilih Kelurahan --</option>';
+      if (kec && wilayahData[kec]) wilayahData[kec].forEach(kel => kelSelect.innerHTML += `<option value="${kel}">${kel}</option>`);
+    }
+
+    async function handleCreateUser(e) {
+      e.preventDefault();
+      if (currentUser.role !== 'admin') return showToast("Akses Ditolak!", "error");
+
+      const u = {
+        display_name: document.getElementById('u-display-name').value.trim(),
+        username: document.getElementById('u-username').value.trim().toLowerCase(),
+        password: document.getElementById('u-password').value,
+        unit_wilayah: document.getElementById('u-unit-wilayah').value,
+        kecamatan: document.getElementById('u-kecamatan').value || '-',
+        kelurahan: document.getElementById('u-kelurahan').value || '-',
+        role: 'user',
+        tenant: document.getElementById('u-unit-wilayah').value === 'Kota' ? 'Kota' : (document.getElementById('u-unit-wilayah').value === 'Kecamatan' ? document.getElementById('u-kecamatan').value : document.getElementById('u-kelurahan').value)
+      };
+
+      if (usersDatabase.find(x => x.username === u.username)) return showToast("Username sudah digunakan!", "error");
+
+      if (isSupabaseActive) {
+        await supabaseClient.from('users').insert([u]);
+        apiFetchAll(); // Refetch Data
+      } else {
+        u.id = Date.now().toString();
+        usersDatabase.push(u);
+        localStorage.setItem('sq_users', JSON.stringify(usersDatabase));
+        renderUsersList();
+      }
+
+      showToast(`Petugas ${u.display_name} berhasil didaftarkan!`, "success");
+      e.target.reset();
+      handleUserWilayahChange();
+    }
+
+    function renderUsersList() {
+      const tbody = document.getElementById('users-table-body');
+      tbody.innerHTML = '';
+      usersDatabase.forEach(u => {
+        let wilayah = 'Seluruh Kota (MASTER)';
+        if (u.unit_wilayah === 'Kecamatan') wilayah = `Kecamatan ${u.kecamatan}`;
+        if (u.unit_wilayah === 'Kelurahan') wilayah = `Kelurahan ${u.kelurahan} (${u.kecamatan})`;
+
+        const isAdmin = u.role === 'admin';
+        const delBtn = isAdmin ? `<span class="text-slate-400 italic text-[10px]">Sistem</span>`
+          : `<button onclick="deleteUser('${u.id}')" class="bg-red-100 hover:bg-red-200 text-red-700 p-1.5 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50">
+            <td class="p-3 font-bold text-slate-800">${u.display_name}</td>
+            <td class="p-3 font-mono text-slate-500">${u.username}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${isAdmin ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}">${u.role.toUpperCase()}</span></td>
+            <td class="p-3 text-slate-600 font-medium">${wilayah}</td>
+            <td class="p-3 text-right">${delBtn}</td>
+          </tr>`;
+      });
+      lucide.createIcons();
+    }
+
+    async function deleteUser(id) {
+      if (isSupabaseActive) {
+        await supabaseClient.from('users').delete().eq('id', id);
+        apiFetchAll();
+      } else {
+        usersDatabase = usersDatabase.filter(u => u.id !== id);
+        localStorage.setItem('sq_users', JSON.stringify(usersDatabase));
+        renderUsersList();
+      }
+      showToast("Petugas berhasil dihapus", "info");
+    }
+
+    // --- MANAJEMEN LAYANAN ---
+    async function handleAddService(e) {
+      e.preventDefault();
+      const s = {
+        name: document.getElementById('new-service-input').value.trim(),
+        prefix: document.getElementById('new-service-prefix').value.trim().toUpperCase()
+      };
+
+      if (serviceMapping[s.name]) return showToast("Layanan tersebut sudah ada!", "error");
+
+      if (isSupabaseActive) {
+        await supabaseClient.from('services').insert([s]);
+        apiFetchAll();
+      } else {
+        serviceMapping[s.name] = s.prefix;
+        localStorage.setItem('sq_services', JSON.stringify(serviceMapping));
+        updateAdminView();
+      }
+      e.target.reset();
+      showToast("Layanan ditambahkan!", "success");
+    }
+
+    async function removeService(name) {
+      if (isSupabaseActive) {
+        await supabaseClient.from('services').delete().eq('name', name);
+        apiFetchAll();
+      } else {
+        delete serviceMapping[name];
+        localStorage.setItem('sq_services', JSON.stringify(serviceMapping));
+        updateAdminView();
+      }
+      showToast("Layanan dihapus", "info");
+    }
+
+    // --- MONITOR VIEW ---
+    function renderMonitorView() {
+      const l1 = queueDatabase.find(q => q.status === 'Dipanggil' && q.counter === 'Loket 1');
+      const l2 = queueDatabase.find(q => q.status === 'Dipanggil' && q.counter === 'Loket 2');
+      const l3 = queueDatabase.find(q => q.status === 'Dipanggil' && q.counter === 'Loket 3');
+
+      document.getElementById('mon-num-l1').textContent = l1 ? l1.queue_number : '--';
+      document.getElementById('mon-purpose-l1').textContent = l1 ? l1.name : 'Kosong';
+      document.getElementById('mon-num-l2').textContent = l2 ? l2.queue_number : '--';
+      document.getElementById('mon-purpose-l2').textContent = l2 ? l2.name : 'Kosong';
+      document.getElementById('mon-num-l3').textContent = l3 ? l3.queue_number : '--';
+      document.getElementById('mon-purpose-l3').textContent = l3 ? l3.name : 'Kosong';
+
+      const lastActive = [...queueDatabase].filter(q => q.status === 'Dipanggil').sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
+      if (lastActive) {
+        document.getElementById('mon-current-num').textContent = lastActive.queue_number;
+        document.getElementById('mon-current-purpose').textContent = `${lastActive.name} - ${lastActive.purpose}`;
+        document.getElementById('mon-current-counter').textContent = lastActive.counter.replace('Loket ', '');
+      } else {
+        document.getElementById('mon-current-num').textContent = '---';
+        document.getElementById('mon-current-purpose').textContent = '-- Antrian Kosong --';
+        document.getElementById('mon-current-counter').textContent = '--';
+      }
+
+      const waitingList = queueDatabase.filter(q => q.status === 'Menunggu');
+      document.getElementById('mon-total-waiting').textContent = waitingList.length;
+
+      const listContainer = document.getElementById('mon-waiting-list');
+      listContainer.innerHTML = '';
+      if (waitingList.length === 0) {
+        listContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs">Tidak ada antrean dalam daftar tunggu</div>`;
+      } else {
+        waitingList.forEach(q => {
+          let loc = q.unit_wilayah === 'Kelurahan' ? q.kelurahan : (q.unit_wilayah === 'Kecamatan' ? q.kecamatan : 'Kota');
+          listContainer.innerHTML += `
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-200">
+              <div class="flex items-center space-x-3">
+                <span class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 font-extrabold flex items-center justify-center font-numeric text-xs">${q.queue_number}</span>
+                <div><h5 class="text-xs font-bold text-slate-800">${q.name}</h5><p class="text-[10px] text-slate-400">${q.purpose}</p></div>
+              </div>
+              <span class="text-[10px] font-bold text-slate-500 bg-slate-200 px-2.5 py-1 rounded-full">${loc}</span>
+            </div>`;
+        });
+      }
+    }
+
+    // --- LAPORAN & REPORT VIEW ---
+    function renderReportView() {
+      if (!currentUser) return;
+      const filterCont = document.getElementById('report-filter-container');
+      const selFilter = document.getElementById('report-user-filter');
+
+      if (currentUser.role === 'admin') {
+        filterCont.classList.remove('hidden');
+        const val = selFilter.value || "SEMUA";
+        selFilter.innerHTML = '<option value="SEMUA">Semua Wilayah (MASTER)</option><option value="KOTA">Tingkat Kota saja</option>';
+        usersDatabase.forEach(u => {
+          if (u.role !== 'admin') {
+            let lbl = `${u.display_name} - ${u.unit_wilayah}`;
+            if (u.unit_wilayah === 'Kecamatan') lbl += ` (${u.kecamatan})`;
+            if (u.unit_wilayah === 'Kelurahan') lbl += ` (${u.kelurahan})`;
+            selFilter.innerHTML += `<option value="${u.username}">${lbl}</option>`;
+          }
+        });
+        selFilter.value = val;
+      } else filterCont.classList.add('hidden');
+
+      let db = [...queueDatabase];
+      const activeFilt = selFilter.value || "SEMUA";
+
+      if (currentUser.role !== 'admin') {
+        db = queueDatabase.filter(q => {
+          if (!q) return false;
+          if (currentUser.unit_wilayah === 'Kota') return q.unit_wilayah === 'Kota';
+          if (currentUser.unit_wilayah === 'Kecamatan') return q.kecamatan === currentUser.kecamatan;
+          if (currentUser.unit_wilayah === 'Kelurahan') return q.kelurahan === currentUser.kelurahan;
+          return false;
+        });
+      } else {
+        if (activeFilt === 'KOTA') db = queueDatabase.filter(q => q && q.unit_wilayah === 'Kota');
+        else if (activeFilt !== 'SEMUA') {
+          const mUser = usersDatabase.find(u => u.username === activeFilt);
+          if (mUser) {
+            db = queueDatabase.filter(q => {
+              if (mUser.unit_wilayah === 'Kota') return q.unit_wilayah === 'Kota';
+              if (mUser.unit_wilayah === 'Kecamatan') return q.kecamatan === mUser.kecamatan;
+              if (mUser.unit_wilayah === 'Kelurahan') return q.kelurahan === mUser.kelurahan;
+              return false;
+            });
+          }
+        }
+      }
+
+      document.getElementById('card-report-kota').classList.toggle('hidden', currentUser.role !== 'admin' && currentUser.unit_wilayah !== 'Kota');
+      document.getElementById('card-report-kecamatan').classList.toggle('hidden', currentUser.role !== 'admin' && currentUser.unit_wilayah !== 'Kecamatan');
+      document.getElementById('card-report-kelurahan').classList.toggle('hidden', currentUser.role !== 'admin' && currentUser.unit_wilayah !== 'Kelurahan');
+
+      document.getElementById('rep-stat-total').textContent = db.length;
+      document.getElementById('rep-stat-served').textContent = db.filter(q => q && (q.status === 'Selesai' || q.status === 'Dipanggil')).length;
+      document.getElementById('rep-stat-waiting').textContent = db.filter(q => q && q.status === 'Menunggu').length;
+
+      const regCounts = {};
+      db.forEach(q => { if (q && q.kecamatan && q.kecamatan !== 'Tingkat Kota') regCounts[q.kecamatan] = (regCounts[q.kecamatan] || 0) + 1; });
+      let peak = "-", mx = 0;
+      Object.keys(regCounts).forEach(r => { if (regCounts[r] > mx) { mx = regCounts[r]; peak = r; } });
+      document.getElementById('rep-stat-peak').textContent = peak === '-' ? '-' : `${peak} (${mx})`;
+
+      renderCharts(regCounts, db);
+      renderMultiLevelReport(db);
+      renderLogTable(db);
+    }
+
+    function renderLogTable(db) {
+      const tbody = document.getElementById('report-table-body');
+      tbody.innerHTML = '';
+      if (db.length === 0) return tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-xs text-slate-400">Tidak ada data</td></tr>`;
+      
+      [...db].reverse().forEach(q => {
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50 transition-colors">
+            <td class="p-3 font-bold font-numeric text-slate-900">${q.queue_number}</td>
+            <td class="p-3 text-xs text-slate-400">${new Date(q.timestamp).toLocaleTimeString('id-ID')}</td>
+            <td class="p-3 font-semibold">${q.name}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">${q.unit_wilayah}</span></td>
+            <td class="p-3 text-slate-500 font-medium">${q.kecamatan}</td>
+            <td class="p-3 text-slate-500 font-medium">${q.kelurahan}</td>
+            <td class="p-3 text-xs">${q.purpose}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${q.status === 'Menunggu' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">${q.status}</span></td>
+          </tr>`;
+      });
+    }
+
+    function renderMultiLevelReport(db) {
+      // 1. Kota
+      const kq = db.filter(q => q && q.unit_wilayah === 'Kota');
+      const ks = kq.filter(q => q.status === 'Selesai' || q.status === 'Dipanggil').length;
+      const kp = kq.length > 0 ? Math.round((ks / kq.length) * 100) : 0;
+      document.getElementById('kota-report-list').innerHTML = `
+        <div class="p-4 bg-slate-50 rounded-2xl border">
+          <h5 class="font-bold text-slate-800 text-sm">Sekretariat Tingkat Kota</h5>
+          <div class="flex justify-between text-xs text-slate-500 mt-2"><span>Total: <strong>${kq.length}</strong></span><span>Selesai: <strong>${ks}</strong></span></div>
+          <div class="w-full bg-slate-200 rounded-full h-2 mt-2"><div class="bg-blue-600 h-2 rounded-full" style="width: ${kp}%"></div></div>
+        </div>`;
+
+      // 2. Kecamatan
+      const kC = document.getElementById('kecamatan-report-list'); kC.innerHTML = '';
+      const cStat = {};
+      db.forEach(q => {
+        if (q && q.kecamatan && q.kecamatan !== 'Tingkat Kota') {
+          if (!cStat[q.kecamatan]) cStat[q.kecamatan] = { t: 0, s: 0 };
+          cStat[q.kecamatan].t += 1;
+          if (q.status === 'Selesai' || q.status === 'Dipanggil') cStat[q.kecamatan].s += 1;
+        }
+      });
+      Object.keys(cStat).forEach(k => {
+        const p = Math.round((cStat[k].s / cStat[k].t) * 100);
+        kC.innerHTML += `<div class="p-3 bg-slate-50 rounded-xl border border-slate-100"><div class="flex justify-between font-bold text-xs text-slate-700"><span>Kec. ${k}</span><span>${cStat[k].t} Antrean</span></div><div class="w-full bg-slate-200 rounded-full h-1.5 mt-2"><div class="bg-indigo-600 h-1.5 rounded-full" style="width: ${p}%"></div></div></div>`;
+      });
+
+      // 3. Kelurahan
+      const klC = document.getElementById('kelurahan-report-list'); klC.innerHTML = '';
+      const klStat = {};
+      db.forEach(q => {
+        if (q && q.kelurahan && q.kelurahan !== '-') {
+          if (!klStat[q.kelurahan]) klStat[q.kelurahan] = { t: 0, s: 0, k: q.kecamatan };
+          klStat[q.kelurahan].t += 1;
+          if (q.status === 'Selesai' || q.status === 'Dipanggil') klStat[q.kelurahan].s += 1;
+        }
+      });
+      Object.keys(klStat).forEach(k => {
+        const p = Math.round((klStat[k].s / klStat[k].t) * 100);
+        klC.innerHTML += `<div class="p-3 bg-slate-50 rounded-xl border border-slate-100"><div class="flex justify-between font-bold text-xs text-slate-700"><span>Kel. ${k}</span><span>${klStat[k].t} Antrean</span></div><div class="w-full bg-slate-200 rounded-full h-1.5 mt-1.5"><div class="bg-teal-500 h-1.5 rounded-full" style="width: ${p}%"></div></div></div>`;
+      });
+    }
+
+    function renderCharts(regCounts, db) {
+      const pCounts = {};
+      db.forEach(q => { if (q && q.purpose) pCounts[q.purpose] = (pCounts[q.purpose] || 0) + 1; });
+
+      if (purposeChartInstance) purposeChartInstance.destroy();
+      purposeChartInstance = new Chart(document.getElementById('chart-purposes').getContext('2d'), {
+        type: 'doughnut', data: { labels: Object.keys(pCounts), datasets: [{ data: Object.values(pCounts), backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#6366f1', '#ec4899'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+      });
+
+      if (regionChartInstance) regionChartInstance.destroy();
+      regionChartInstance = new Chart(document.getElementById('chart-regions').getContext('2d'), {
+        type: 'bar', data: { labels: Object.keys(regCounts), datasets: [{ label: 'Jumlah Pemohon', data: Object.values(regCounts), backgroundColor: '#6366f1' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+      });
+    }
+
+    function exportToCSV() {
+      if (queueDatabase.length === 0) return showToast("Tidak ada data untuk diekspor!", "error");
+      let csv = "data:text/csv;charset=utf-8,Timestamp,Nama,Telepon,Tingkat,Kecamatan,Kelurahan,Layanan,Status,Loket\n";
+      queueDatabase.forEach(q => { if (q) csv += `"${q.timestamp}","${q.name}","${q.phone}","${q.unit_wilayah}","${q.kecamatan}","${q.kelurahan}","${q.purpose}","${q.status}","${q.counter}"\n`; });
+      const link = document.createElement("a"); link.setAttribute("href", encodeURI(csv)); link.setAttribute("download", `Laporan_Antrean_${Date.now()}.csv`);
+      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    }
+
+    // --- AUTHENTICATION ---
+    function openLoginModal() { document.getElementById('login-modal').classList.remove('hidden'); }
+    function closeLoginModal() { document.getElementById('login-modal').classList.add('hidden'); }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('login-username').value.trim().toLowerCase();
+      const p = document.getElementById('login-password').value;
+
+      const user = usersDatabase.find(x => x.username.toLowerCase() === u && x.password === p);
+      if (user) {
+        currentUser = user; currentTenant = user.tenant;
+        document.getElementById('user-display').textContent = user.display_name;
+        document.getElementById('user-info').classList.remove('hidden');
+        closeLoginModal(); showToast(`Selamat datang, ${user.display_name}!`, "success");
+        switchView('admin');
+      } else showToast("Username atau Password salah!", "error");
+    }
+
+    function logout() {
+      currentUser = null; currentTenant = null;
+      document.getElementById('user-info').classList.add('hidden');
+      showToast("Anda telah keluar dari sistem.", "info");
+      switchView('portal');
+    }
+  </script>
+ </body>
+</html>
